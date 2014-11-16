@@ -1,0 +1,29 @@
+diff --git a/includes/entity.wrapper.inc b/includes/entity.wrapper.inc
+index 67764e7..4a0327c 100644
+--- a/includes/entity.wrapper.inc
++++ b/includes/entity.wrapper.inc
+@@ -504,7 +504,7 @@ class EntityStructureWrapper extends EntityMetadataWrapper implements IteratorAg
+       while (!($entity instanceof EntityDrupalWrapper) && isset($entity->info['parent'])) {
+         $entity = $entity->info['parent'];
+       }
+-      if ($entity instanceof EntityDrupalWrapper && !$entity->entityAccess('update', $account)) {
++      if ($entity instanceof EntityDrupalWrapper && $entity->entityAccess('update', $account) === FALSE) {
+         return FALSE;
+       }
+     }
+@@ -809,7 +809,14 @@ class EntityDrupalWrapper extends EntityStructureWrapper {
+     if (!empty($this->info['parent'])) {
+       // If this is a property, make sure the user is able to view the
+       // currently referenced entity also.
+-      return $this->entityAccess('view', $account) && parent::access($op, $account);
++      if ($this->entityAccess('view', $account) === FALSE) {
++        return;
++      }
++      if (parent::access($op, $account) === FALSE) {
++        return;
++      }
++
++      return TRUE;
+     }
+     else {
+       // This is not a property, so fallback on entity access.
