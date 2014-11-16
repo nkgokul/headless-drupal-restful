@@ -1,0 +1,95 @@
+<?php
+
+/**
+ * @file
+ * RESTful token authentication.
+ */
+
+
+/**
+ * Implements hook_menu_alter().
+ */
+function restful_token_auth_menu_alter(&$items) {
+  $base_path = variable_get('restful_hook_menu_base_path', 'api');
+  if (!empty($items[$base_path . '/login-token'])) {
+    $items[$base_path . '/login-token']['delivery callback'] = 'restful_unprepared_delivery';
+  }
+}
+
+/**
+ * Implements hook_restful_parse_request_alter()
+ */
+function restful_token_auth_restful_parse_request_alter(&$request) {
+  $plugin = restful_get_authentication_plugin('token');
+  $param_name = $plugin['options']['param_name'];
+
+  $capital_name = strtoupper('HTTP_' . $param_name);
+
+  $request['__application'] += array(
+    $param_name => !empty($_SERVER[$capital_name]) ? $_SERVER[$capital_name] : NULL,
+  );
+}
+
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function restful_token_auth_ctools_plugin_directory($module, $plugin) {
+  if ($module == 'restful') {
+    return 'plugins/' . $plugin;
+  }
+}
+
+
+/**
+ * Implements hook_entity_info().
+ */
+function restful_token_auth_entity_info() {
+  $items['restful_token_auth'] = array(
+    'label' => t('Authentication token'),
+    'entity class' => 'RestfulTokenAuth',
+    'controller class' => 'EntityAPIController',
+    'base table' => 'restful_token_auth',
+    'fieldable' => TRUE,
+    'entity keys' => array(
+      'id' => 'id',
+      'label' => 'name',
+      'bundle' => 'type',
+    ),
+    'bundles' => array(),
+    'bundle keys' => array(
+      'bundle' => 'type',
+    ),
+    'module' => 'restful_token_auth',
+    'entity cache' => module_exists('entitycache'),
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ *
+ * Delete expired token auth entities.
+ */
+function restful_token_auth_cron() {
+  if (!variable_get('restful_token_auth_delete_expired_tokens', TRUE)) {
+    // We should not delete expired tokens.
+    return;
+  }
+
+  $query = new EntityFieldQuery();
+  $result = $query
+    ->entityCondition('entity_type', 'restful_token_auth')
+    ->propertyCondition('expire', REQUEST_TIME, '<')
+    ->range(0, 50)
+    ->execute();
+
+  if (empty($result['restful_token_auth'])) {
+    // No expired tokens.
+    return;
+  }
+
+  $ids = array_keys($result['restful_token_auth']);
+  entity_delete_multiple('restful_token_auth', $ids);
+}
